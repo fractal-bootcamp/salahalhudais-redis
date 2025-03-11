@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+
 export default function Home() {
   const [clickCount, setClickCount] = useState(0);
   const [isRateLimited, setIsRateLimited] = useState(false);
@@ -8,7 +9,6 @@ export default function Home() {
 
   useEffect(() => {
     fetchClickCount();
-
 
     const intervalId = setInterval(() => {
       fetchClickCount();
@@ -72,10 +72,11 @@ export default function Home() {
               <button
                 onClick={handleClick}
                 disabled={isRateLimited}
-                className={`px-6 py-3 rounded-lg text-white font-bold text-lg transition-colors ${isRateLimited
+                className={`px-6 py-3 rounded-lg text-white font-bold text-lg transition-colors ${
+                  isRateLimited
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
+                }`}
               >
                 Click Me!
               </button>
