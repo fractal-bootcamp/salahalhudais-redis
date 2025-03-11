@@ -2,15 +2,22 @@ import { getRedisClient } from './client';
 
 export async function cacheData<T>(key: string, data: T, expirationInSeconds = 3600) {
   const client = await getRedisClient();
-  await client.set(key, JSON.stringify(data), { EX: expirationInSeconds });
+  await client.set(key, JSON.stringify(data), 'EX', expirationInSeconds);
 }
 
 export async function getCachedData(key: string) {
   const client = await getRedisClient();
   const data = await client.get(key);
-  return data ? JSON.parse(data) : null;
+  
+  if (!data) return null;
+  
+  try {
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error parsing cached data:', error);
+    return null;
+  }
 }
-
 
 export async function rateLimit(identifier: string, limit: number, windowInSeconds: number) {
   const client = await getRedisClient();

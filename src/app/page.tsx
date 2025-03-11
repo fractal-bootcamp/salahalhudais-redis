@@ -1,99 +1,101 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { socket } from '../socket';
 
 export default function Home() {
-  const [clickCount, setClickCount] = useState(0);
-  const [isRateLimited, setIsRateLimited] = useState(false);
-  const [remainingAttempts, setRemainingAttempts] = useState(10);
-  const [loading, setLoading] = useState(true);
-
+  const [count, setCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
   useEffect(() => {
-    fetchClickCount();
-
-    const intervalId = setInterval(() => {
-      fetchClickCount();
-    }, 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  const fetchClickCount = async () => {
-    try {
-      const response = await fetch('/api/clicks');
-      const data = await response.json();
-      setClickCount(data.count);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching click count:', error);
-      setLoading(false);
-    }
-  };
-
-  const handleClick = async () => {
-    try {
-      const response = await fetch('/api/clicks', {
-        method: 'POST',
+    // Initial fetch
+    fetch('/api/clicks')
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! Status: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        console.log("Received data:", data);
+        setCount(data.count);
+        setError(null);
+      })
+      .catch(err => {
+        console.error('Error fetching count:', err);
+        setError(err.message);
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setClickCount(data.count);
-        setRemainingAttempts(data.remainingAttempts);
-      } else {
-        setIsRateLimited(true);
-        setRemainingAttempts(data.remainingAttempts);
-
-        // Reset rate limited status after a delay
-        setTimeout(() => {
-          setIsRateLimited(false);
-        }, 10000);
+    
+    function onConnect() {
+      console.log('Connected to WebSocket server');
+      setIsConnected(true);
+    }
+    
+    function onDisconnect() {
+      console.log('Disconnected from WebSocket server');
+      setIsConnected(false);
+    }
+    
+    function onClickUpdate(data: { count: number }) {
+      console.log('Received update:', data);
+      setCount(data.count);
+    }
+    
+    // Set up event listeners
+    if (socket.connected) {
+      onConnect();
+    }
+    
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('click-update', onClickUpdate);
+    
+    // Clean up event listeners
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('click-update', onClickUpdate);
+    };
+  }, []);
+  
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/clicks', { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
       }
+      const data = await res.json();
+      setCount(data.count);
+      setError(null);
     } catch (error) {
       console.error('Error recording click:', error);
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
     }
   };
-
+  
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
-        <h1 className="text-4xl font-bold mb-8 text-center">Redis Click Counter</h1>
-
-        {loading ? (
-          <p className="text-center">Loading...</p>
-        ) : (
-          <>
-            <div className="text-center mb-8">
-              <div className="text-6xl font-bold mb-2">{clickCount}</div>
-              <p className="text-xl">Total Clicks</p>
-            </div>
-
-            <div className="flex flex-col items-center">
-              <button
-                onClick={handleClick}
-                disabled={isRateLimited}
-                className={`px-6 py-3 rounded-lg text-white font-bold text-lg transition-colors ${
-                  isRateLimited
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                Click Me!
-              </button>
-
-              {isRateLimited && (
-                <p className="mt-4 text-red-500">
-                  Rate limited! Too many clicks too quickly.
-                </p>
-              )}
-
-              <p className="mt-2">
-                Remaining attempts: {remainingAttempts}/10
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <main className="flex min-h-screen flex-col items-center justify-center p-24">
+      <h1 className="text-4xl font-bold mb-8">Redis Click Counter</h1>
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          Error: {error}
+        </div>
+      )}
+      <p className="text-2xl mb-4">Count: {count}</p>
+      <p className="text-sm mb-4">
+        WebSocket Status: {isConnected ? 'Connected' : 'Disconnected'}
+      </p>
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+      >
+        {loading ? 'Clicking...' : 'Click Me!'}
+      </button>
+    </main>
   );
 }

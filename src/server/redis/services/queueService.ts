@@ -6,7 +6,7 @@ import { getRedisClient } from '../client';
 export async function enqueueClick(userId: string) {
   const client = await getRedisClient();
   const clickData = JSON.stringify({ userId, timestamp: Date.now() });
-  await client.lPush('click:queue', clickData);
+  await client.lpush('click:queue', clickData);
 }
 
 
